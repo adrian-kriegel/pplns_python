@@ -1,0 +1,7 @@
+#!/bin/sh
+
+pytest
+
+pip freeze -l > requirements.txt
+
+git add requirements.txt
