@@ -16,20 +16,23 @@ import typing
 
 from pplns_types import \
   WorkerWrite, \
-  Worker
+  Worker, \
+  BundleRead, \
+  BundleQuery
 
-ApiScheme = typing.Literal['http', 'https']
+from pplns_python.input_stream import BundleProcessor, InputStream
+
 
 class PipelineApi:
 
-  endpoint : UrlParseResult
+  __endpoint : UrlParseResult
 
   def __init__(
     self,
     base_url : str
   ) -> None:
 
-    self.endpoint = urlparse(base_url)
+    self.__endpoint = urlparse(base_url)
 
 
   def build_uri(
@@ -40,9 +43,9 @@ class PipelineApi:
 
     return urlunsplit(
       (
-        self.endpoint.scheme,
-        self.endpoint.netloc,
-        os.path.join(self.endpoint.path, path),
+        self.__endpoint.scheme,
+        self.__endpoint.netloc,
+        os.path.join(self.__endpoint.path, path),
         urlencode(query),
         ""
       )
@@ -51,13 +54,13 @@ class PipelineApi:
   def build_request(
     self,
     url : str,
-    body : typing.Any # TODO: type
+    body : typing.Any = None # TODO: type
   ):
 
     return {
       'url': url,
       'headers': { 'Content-Type': 'application/json' }, 
-      'data': json.dumps(body)
+      'data': json.dumps(body) if body else None
     }
 
   def register_worker(
@@ -73,3 +76,46 @@ class PipelineApi:
     result = requests.post(**params)
 
     return result.json()
+
+  def consume(
+    self,
+    **query : BundleQuery
+  ) -> list[BundleRead]:
+
+    params = self.build_request(
+      self.build_uri('/bundles', query),
+    )
+
+    get_response = requests.get(**params).json()
+
+    return get_response['results']
+
+  def unconsume(
+    self,
+    bundle_id : str
+  ):
+
+    return requests.put(
+      self.build_uri('/bundles/' + bundle_id)
+    )
+  
+  def on_bundle(
+    self,
+    query : BundleQuery,
+    processor : BundleProcessor,
+    **input_stream_args
+  ):
+
+    '''
+    Initializes InputStream to watch for new bundles with that match the provided query.
+    '''
+
+    stream = InputStream(
+      self,
+      query,
+      **input_stream_args
+    )
+
+    stream.on('data', processor)
+
+    return stream
