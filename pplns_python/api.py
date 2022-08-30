@@ -1,6 +1,9 @@
 
 import os.path
 
+import json
+import typing 
+
 import requests
 
 from urllib.parse import\
@@ -45,14 +48,28 @@ class PipelineApi:
       )
     )
 
+  def build_request(
+    self,
+    url : str,
+    body : typing.Any # TODO: type
+  ):
+
+    return {
+      'url': url,
+      'headers': { 'Content-Type': 'application/json' }, 
+      'data': json.dumps(body)
+    }
+
   def register_worker(
     self,
     worker : WorkerWrite
   ) -> Worker:
 
-    result = requests.post(
+    params = self.build_request(
       self.build_uri('/workers'),
-      data=worker
+      worker
     )
+
+    result = requests.post(**params)
 
     return result.json()

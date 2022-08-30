@@ -10,7 +10,7 @@ example_worker : WorkerWrite = {
   "description": "Example for a worker in python.",
 
   "inputs": {
-    "in0": { type: "string" }
+    "in0": { 'type': "string" }
   },
 
   "outputs": {
