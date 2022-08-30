@@ -5,7 +5,6 @@ idna==3.3
 iniconfig==1.1.1
 packaging==21.3
 pluggy==1.0.0
--e git+ssh://git@github.com/unologin/pplns_python.git@7ac701315f397a2aaef8df35f2635b63c82dcfcd#egg=pplns_python
 -e git+ssh://git@github.com/unologin/pplns-core-api.git@0a3423f31a9f516d17d46e933b27284daabeaaba#egg=pplns_types&subdirectory=python-types
 py==1.11.0
 pyparsing==3.0.9

@@ -7,3 +7,4 @@ __pycache__
 .pytest_cache
 .vscode
 pplns_python/pplns_python.egg-info
+pplns_python.egg-info

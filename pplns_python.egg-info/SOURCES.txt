@@ -1,6 +1,0 @@
-setup.py
-pplns_python.egg-info/PKG-INFO
-pplns_python.egg-info/SOURCES.txt
-pplns_python.egg-info/dependency_links.txt
-pplns_python.egg-info/top_level.txt
-test/test_pplns_api.py
