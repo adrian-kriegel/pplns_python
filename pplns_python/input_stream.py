@@ -3,13 +3,14 @@ import threading
 from time import time
 import typing
 
+if typing.TYPE_CHECKING:
+  
+  from pplns_python.api import PipelineApi
+
 from pplns_types import \
   BundleQuery, \
   BundleRead, \
   DataItemWrite
-
-from pplns_python.api import PipelineApi
-
 BundleProcessor = typing.Callable[
   [BundleRead],
   list[DataItemWrite] | DataItemWrite
@@ -84,13 +85,13 @@ class InputStream(Stream):
 
   def __init__(
     self,
-    api : PipelineApi,
+    api : 'PipelineApi',
     query : BundleQuery,
     max_concurrency : int = 10,
     polling_time : int = 500,
   ) -> None:
 
-    self.api: PipelineApi = api
+    self.api: 'PipelineApi' = api
     self.query = query
     self.max_concurrency = max_concurrency
     self.polling_time = polling_time
