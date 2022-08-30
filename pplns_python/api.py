@@ -1,7 +1,13 @@
 
+import os.path
+
 import requests
 
-from urllib.parse import urlunsplit, urlencode
+from urllib.parse import\
+  urlunsplit, \
+  urlencode, \
+  urlparse, \
+  ParseResult as UrlParseResult
 
 import typing
 
@@ -9,19 +15,19 @@ from pplns_types import \
   WorkerWrite, \
   Worker
 
+ApiScheme = typing.Literal['http', 'https']
+
 class PipelineApi:
 
-  endpoint : str
-  scheme : str
+  endpoint : UrlParseResult
 
   def __init__(
     self,
-    endpoint : str,
-    scheme : typing.Literal['http', 'https']
+    base_url : str
   ) -> None:
 
-    self.endpoint = endpoint
-    self.scheme = scheme
+    self.endpoint = urlparse(base_url)
+
 
   def build_uri(
     self,
@@ -31,9 +37,9 @@ class PipelineApi:
 
     return urlunsplit(
       (
-        self.scheme,
-        self.endpoint,
-        path,
+        self.endpoint.scheme,
+        self.endpoint.netloc,
+        os.path.join(self.endpoint.path, path),
         urlencode(query),
         ""
       )

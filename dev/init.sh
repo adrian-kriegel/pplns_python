@@ -2,10 +2,10 @@
 
 sh dev/install_git_hooks.sh
 
-if [ ! -d pplns_python ]; then
+if [ ! -d python_env ]; then
 
-  virtualenv pplns_python
-  source pplns_python/bin/activate
+  virtualenv python_env
+  source python_env/bin/activate
   pip install -r requirements.txt
 
 fi
