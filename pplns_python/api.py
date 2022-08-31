@@ -23,9 +23,32 @@ from pplns_types import \
 from pplns_python.input_stream import BundleProcessor, InputStream
 
 
+
+def stringify_value(value : typing.Any) -> str:
+
+  '''
+  Stringifies values for use in a query string.
+  '''
+
+  return value if isinstance(value, str) else json.dumps(value)
+
+def clean_query(query : typing.Any):
+
+  '''
+  Removes all Nones from the query and turns True/False into true/false.
+  '''
+
+  return {
+    key: stringify_value(value) 
+    for key, value in query.items() 
+    if not value == None
+  }
+
 class PipelineApi:
 
   __endpoint : UrlParseResult
+
+  workers : dict[str, Worker]
 
   def __init__(
     self,
@@ -34,11 +57,58 @@ class PipelineApi:
 
     self.__endpoint = urlparse(base_url)
 
+    self.workers = {}
+
+  def get(self, **request_params) -> typing.Any:
+
+    return self.__parse_response(requests.get(**request_params))
+
+  def post(self, **request_params) -> typing.Any:
+
+    return self.__parse_response(requests.post(**request_params))
+
+  def put(self, **request_params) -> typing.Any:
+
+    return self.__parse_response(requests.put(**request_params))
+
+  def delete(self, **request_params) -> typing.Any:
+
+    return self.__parse_response(requests.delete(**request_params))
+
+  def __parse_response(
+    self,
+    response : requests.Response
+  ) -> dict:
+
+    is_json: bool = response.headers['Content-Type'].startswith('application/json')
+
+    body: typing.Any | None = response.json() if is_json else None
+    
+    if (
+      response.status_code >= 200 and 
+      response.status_code < 300 and 
+      body
+    ):
+
+      return body
+
+    else:
+
+      if is_json:
+        
+        raise Exception(
+          'API error:\n' +
+          json.dumps(body, indent=4)
+        )
+
+      else:
+
+        raise Exception('Unknown API error: \n' + response.text)
 
   def build_uri(
     self,
     path : str,
-    query : dict[str, typing.Any] = {}
+    query : typing.Any = {} # TODO: typing
   ) -> str:
 
     return urlunsplit(
@@ -46,7 +116,7 @@ class PipelineApi:
         self.__endpoint.scheme,
         self.__endpoint.netloc,
         os.path.join(self.__endpoint.path, path),
-        urlencode(query),
+        urlencode(clean_query(query)),
         ""
       )
     )
@@ -73,21 +143,24 @@ class PipelineApi:
       worker
     )
 
-    result = requests.post(**params)
+    worker_read : Worker = self.post(**params)
 
-    return result.json()
+    self.workers[worker_read['_id']] = worker_read
+
+    return worker_read
+
 
   def consume(
     self,
-    **query : BundleQuery
+    query : BundleQuery
   ) -> list[BundleRead]:
 
     params = self.build_request(
       self.build_uri('/bundles', query),
     )
 
-    get_response = requests.get(**params).json()
-
+    get_response = self.get(**params)
+    
     return get_response['results']
 
   def unconsume(
@@ -95,8 +168,8 @@ class PipelineApi:
     bundle_id : str
   ):
 
-    return requests.put(
-      self.build_uri('/bundles/' + bundle_id)
+    return self.put(
+      url=self.build_uri('/bundles/' + bundle_id)
     )
   
   def on_bundle(

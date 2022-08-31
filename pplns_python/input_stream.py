@@ -3,6 +3,8 @@ import threading
 from time import time
 import typing
 
+
+# required to avoid circular dependencies in runtime
 if typing.TYPE_CHECKING:
   
   from pplns_python.api import PipelineApi
@@ -10,9 +12,25 @@ if typing.TYPE_CHECKING:
 from pplns_types import \
   BundleQuery, \
   BundleRead, \
-  DataItemWrite
+  DataItem, \
+  DataItemWrite, \
+  FlowIdSchema, \
+  WorkerWrite
+
+PreparedInput = typing.TypedDict(
+  'PreparedInput',
+  {
+    # bundle id
+    '_id': str,
+    # bundle flowId
+    'flowId': FlowIdSchema,
+    # data items by their name
+    'inputs': dict[str, DataItem],
+  },
+)
+
 BundleProcessor = typing.Callable[
-  [BundleRead],
+  [PreparedInput],
   list[DataItemWrite] | DataItemWrite
 ]
 
@@ -37,14 +55,18 @@ class Stream:
     self,
     event : str,
     *args : typing.Any
-  ) -> None:
+  ) -> typing.Any:
   
     if (not event in self.handlers):
       return
 
+    res = None
+
     for fnc in self.handlers[event]:
 
-      fnc(*args)
+      res = fnc(*args)
+
+    return res
 
 class Interval:
 
@@ -69,17 +91,77 @@ class Interval:
 
     self.stopEvent.set()
 
+class Counter:
+
+  '''
+  Thread safe counter.
+  '''
+
+  __max : int
+  __counter : int
+  __lock : threading.Lock
+
+  def __init__(
+    self,
+    max : int
+  ) -> None:
+
+    self.__max = max
+    self.__counter = 0
+    self.__lock = threading.Lock()
+
+  def dec(self) -> bool:
+
+    ''' Decrements the counter. Returns true if counter < max.'''
+
+    with self.__lock:
+      self.__counter -= 1
+    
+    return self.__counter < self.__max
+
+  def inc(self) -> bool:
+
+    ''' Increments the counter. Returns true if counter < max.'''
+
+    with self.__lock:
+      self.__counter += 1
+    
+    return self.__counter < self.__max
+
+def prepare_bundle(
+  worker : WorkerWrite,
+  bundle : BundleRead
+) -> PreparedInput:
+
+  '''
+  Prepares a bundle to be processed by sorting the data items to match the workers inputs.
+  '''
+
+  # first, sort the item references by their position
+  item_refs_sorted = sorted(
+    bundle['inputItems'],
+    key=lambda item : item['position']
+  )
+
+  # get the itemIds (because it is tricky to to something as items.find(...) which would be possible in JS)
+  item_ids: list[str] = [item['_id'] for item in bundle['items']]
+
+  # sort the actual items by finding the corresponding item to each reference in the sorted references
+  items_sorted : list[DataItem] = [
+    bundle['items'][item_ids.index(ref['itemId'])] for ref in item_refs_sorted
+  ]
+
+  return {
+    '_id': bundle['_id'],
+    'flowId' :bundle['flowId'],
+    'inputs': dict(zip(worker['inputs'].keys(), items_sorted))
+  }
+
 class InputStream(Stream):
 
   '''
-  Emits 'data' event once there are new data bundles to be consumed from the api.
+  Emits 'data' event when there are new data bundles to be consumed from the api.
   '''
-
-  query : BundleQuery
-  max_concurrency : int
-  polling_time : int
-
-  active_callbacks : int = 0
 
   interval : Interval | None = None
 
@@ -92,9 +174,9 @@ class InputStream(Stream):
   ) -> None:
 
     self.api: 'PipelineApi' = api
-    self.query = query
-    self.max_concurrency = max_concurrency
-    self.polling_time = polling_time
+    self.query: BundleQuery = query
+    self.polling_time: int = polling_time
+    self.active_callbacks: Counter = Counter(max=max_concurrency)
 
   def on(
     self,
@@ -121,12 +203,11 @@ class InputStream(Stream):
           InputStreamDataCallback(self, callback)
         )
 
-
     else:
 
       return Stream.on(self, event, callback)
 
-  def pause(self):
+  def pause(self) -> None:
 
     ''' Pauses stream. '''
 
@@ -154,13 +235,25 @@ class InputStream(Stream):
     Runs one single polling iteration.
     '''
 
+    bundles: list[BundleRead] = self.api.consume(self.query)
+
+    for bundle in bundles:
+
+      self.emit(
+        'data',
+        prepare_bundle(
+          self.api.workers[bundle['workerId']], 
+          bundle
+        )
+      )
+
   def __handle_callback_error(
     self,
-    bundle : BundleRead,
+    bundleId : str,
     error : Exception
   ) -> None:
 
-    self.api.unconsume(bundle['_id'])
+    self.api.unconsume(bundleId)
 
     self.emit('error', error)
 
@@ -174,30 +267,28 @@ class InputStreamDataCallback:
   def __init__(
     self,
     stream : InputStream,
-    fnc : typing.Callable[[BundleRead], typing.Any]
+    fnc : BundleProcessor
   ) -> None:
 
     self.stream: InputStream = stream
     self.fnc = fnc
 
-  def __call__(self, bundle : BundleRead) -> None:
+  def __call__(self, input : PreparedInput) -> None:
 
     try:
 
-      if ++self.stream.active_callbacks > self.stream.max_concurrency:
+      if not self.stream.active_callbacks.dec():
 
         self.stream.pause()
 
-      self.fnc(bundle)
+      self.fnc(input)
 
     except Exception as e:
 
-      self.stream.__handle_callback_error(bundle, e)
+      self.stream.__handle_callback_error(input['_id'], e)
 
     finally:
 
-      self.stream.active_callbacks -= 1
-
-      if self.stream.active_callbacks <= self.stream.max_concurrency:
+      if self.stream.active_callbacks.inc():
 
         self.stream.resume()
