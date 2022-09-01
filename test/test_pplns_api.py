@@ -69,13 +69,6 @@ def test_consume():
     { 
       'workerId': workerId,
       'taskId': task_id,
-      # TODO: this is required until typing.NotRequired is introduced in python 3.11
-      '_id': None,
-      'consumerId': None,
-      'done': True,
-      'flowId': None,
-      'limit': 1,
-      'consume': True,
     }
   )
 
