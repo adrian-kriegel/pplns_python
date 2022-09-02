@@ -1,20 +1,16 @@
 
-import os
 from urllib.parse import ParseResult, urlparse
 
-from pplns_python.api import PipelineApi
+from test.testing_utils import TestPipelineApi as PipelineApi
 from pplns_python.example_worker import example_worker
 
-from pplns_types import TaskWrite
+from pplns_types import \
+  DataItemWrite  
 
-def env(s : str) -> str:
-
-  v: str | None  = os.environ.get(s)
-
-  if v:
-    return v
-  else:
-    raise Exception('Missing environment variable: ' + s)
+from test.testing_utils import \
+  env, \
+  source_node, \
+  sink_node
 
 def test_build_uri() -> None:
 
@@ -35,6 +31,19 @@ def test_build_uri() -> None:
 
 api = PipelineApi(env('PPLNS_API'))
 
+
+task = api.utils_create_task()
+
+source = api.utils_create_node(
+  task,
+  source_node,
+)
+
+sink = api.utils_create_node(
+  task,
+  sink_node(source),
+)
+
 def test_register_worker() -> None:
 
   result = api.register_worker(
@@ -45,34 +54,49 @@ def test_register_worker() -> None:
 
   assert isinstance(api.workers[result['_id']], dict)
 
-def test_consume():
+def test_emit_item_consume_item():
+
+  item : DataItemWrite = \
+  {
+    "outputChannel": 'data',
+    "done": True,
+    "data": [ 'example data' ],
+  }
+
+  emit_response = api.emit_item(
+    { 'nodeId': source['_id'], 'taskId': task['_id'] },
+    item
+  )
+
+  # TODO: check response
 
   # prepare by registering a task 
 
-  task : TaskWrite = {
-    'title': 'test task',
-    'description': 'nothing here',
-    'params': {},
-    'owners': []
-  }
-
-  task_id = api.post(
-    **api.build_request(
-      api.build_uri('/tasks'),
-      task
-    )
-  )['_id']
-
-  workerId : str = list(api.workers.keys())[0]
-
   result = api.consume(
     { 
-      'workerId': workerId,
-      'taskId': task_id,
+      'consumerId': sink['_id'],
+      'taskId': task['_id'],
     }
   )
 
   assert isinstance(result, list)
 
+  assert len(result) == 1
+
+  bundle = result[0]
+
+  input_items = bundle['items']
+  
+  assert len(input_items) == 1
+
+  assert input_items[0]['_id'] == emit_response['_id']
+  assert input_items[0]['data'][0] == item['data'][0]
+
   # TODO: since the behavior of the API is tested, it is enough to check that the request made
   # matches the expected request
+  
+
+
+
+
+

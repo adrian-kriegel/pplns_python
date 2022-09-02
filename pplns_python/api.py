@@ -18,7 +18,9 @@ from pplns_types import \
   WorkerWrite, \
   Worker, \
   BundleRead, \
-  BundleQuery
+  BundleQuery, \
+  DataItemWrite, \
+  DataItemQuery
 
 from pplns_python.input_stream import BundleProcessor, InputStream
 
@@ -75,6 +77,10 @@ class PipelineApi:
 
     return self.__parse_response(requests.delete(**request_params))
 
+  def patch(self, **request_params) -> typing.Any:
+
+    return self.__parse_response(requests.patch(**request_params))
+
   def __parse_response(
     self,
     response : requests.Response
@@ -123,12 +129,12 @@ class PipelineApi:
 
   def build_request(
     self,
-    url : str,
+    url : str | tuple[str, typing.Any],
     body : typing.Any = None # TODO: type
   ):
 
     return {
-      'url': url,
+      'url': self.build_uri(url) if isinstance(url, str) else self.build_uri(url[0], url[1]),
       'headers': { 'Content-Type': 'application/json' }, 
       'data': json.dumps(body) if body else None
     }
@@ -139,7 +145,7 @@ class PipelineApi:
   ) -> Worker:
 
     params = self.build_request(
-      self.build_uri('/workers'),
+      '/workers',
       worker
     )
 
@@ -156,7 +162,7 @@ class PipelineApi:
   ) -> list[BundleRead]:
 
     params = self.build_request(
-      self.build_uri('/bundles', query),
+      ('/bundles', query),
     )
 
     get_response = self.get(**params)
@@ -169,8 +175,22 @@ class PipelineApi:
   ):
 
     return self.put(
-      url=self.build_uri('/bundles/' + bundle_id)
+      url=('/bundles/' + bundle_id)
     )
+
+  def emit_item(
+    self,
+    query : DataItemQuery,
+    item : DataItemWrite
+  ):
+    
+    return self.post(
+      **self.build_request(
+        ('/outputs', query),
+        item,
+      )
+    )
+
   
   def on_bundle(
     self,
