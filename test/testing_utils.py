@@ -3,11 +3,14 @@ import os
 
 from pplns_python.api import PipelineApi
 
+import typing
+
 from pplns_types import \
   NodeWrite, \
   NodeRead, \
   Task, \
-  NodeWrite
+  NodeWrite, \
+  Worker
 
 def env(s : str) -> str:
 
@@ -41,6 +44,32 @@ def sink_node(source_node : NodeRead) -> NodeWrite:
 
 class TestPipelineApi(PipelineApi):
 
+  def __init__(self, url : typing.Optional[str] = None) -> None:
+
+    PipelineApi.__init__(self, url or env('PPLNS_API'))
+
+
+  def get_registered_worker(self, workerId: typing.Optional[str]) -> Worker:
+    
+    if not workerId:
+
+      worker : Worker = {
+        'key': 'mock-worker',
+        '_id': 'mock-worker',
+        'title': '',
+        'description': '',
+        'params': {},
+        'createdAt': '',
+        'inputs': { 'in': { } },
+        'outputs': { 'data': {} }
+      }
+
+      return worker
+
+    else:
+
+      return self.workers[workerId]
+
   def utils_create_task(
     self,
   ) -> Task:
@@ -72,13 +101,31 @@ class TestPipelineApi(PipelineApi):
       )
     )
 
-  def cleanup(self):
+  def utils_source_sink_pipe(
+    self
+  ) -> tuple[Task, NodeRead, NodeRead]:
 
-    return self.post(
-      **self.build_request(
-        url='/test-server/cleanup'
-      )
+    '''
+    Creates new task with simple test pipeline setup.
+
+    source -> sink
+
+    returns task, source, sink
+    '''
+
+    task = self.utils_create_task()
+
+    source = self.utils_create_node(
+      task,
+      source_node,
     )
+
+    sink = self.utils_create_node(
+      task,
+      sink_node(source),
+    )
+
+    return task, source, sink
 
 
 def cleanup():

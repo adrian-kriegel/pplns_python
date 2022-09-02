@@ -1,16 +1,14 @@
 
 from urllib.parse import ParseResult, urlparse
 
-from test.testing_utils import TestPipelineApi as PipelineApi
+from test.testing_utils import \
+  TestPipelineApi as PipelineApi
+
 from pplns_python.example_worker import example_worker
 
 from pplns_types import \
   DataItemWrite  
 
-from test.testing_utils import \
-  env, \
-  source_node, \
-  sink_node
 
 def test_build_uri() -> None:
 
@@ -29,20 +27,9 @@ def test_build_uri() -> None:
   assert uri == 'http://example.com/api/path/to/resource?foo=bar&test=bart'
 
 
-api = PipelineApi(env('PPLNS_API'))
+api = PipelineApi()
 
-
-task = api.utils_create_task()
-
-source = api.utils_create_node(
-  task,
-  source_node,
-)
-
-sink = api.utils_create_node(
-  task,
-  sink_node(source),
-)
+task, source, sink = api.utils_source_sink_pipe()
 
 def test_register_worker() -> None:
 

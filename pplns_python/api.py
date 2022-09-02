@@ -155,6 +155,17 @@ class PipelineApi:
 
     return worker_read
 
+  def get_registered_worker(self, workerId : typing.Optional[str]) -> Worker:
+
+    '''
+    Finds a worker that has been registered using register_worker.
+    '''
+
+    if not workerId or not workerId in self.workers:
+      raise Exception(f'Worker {workerId} has not been registered locally.')
+
+    return self.workers[workerId]
+
 
   def consume(
     self,
@@ -192,12 +203,11 @@ class PipelineApi:
     )
 
   
-  def on_bundle(
+  def create_input_stream(
     self,
     query : BundleQuery,
-    processor : BundleProcessor,
     **input_stream_args
-  ):
+  ) -> InputStream:
 
     '''
     Initializes InputStream to watch for new bundles with that match the provided query.
@@ -208,7 +218,5 @@ class PipelineApi:
       query,
       **input_stream_args
     )
-
-    stream.on('data', processor)
 
     return stream

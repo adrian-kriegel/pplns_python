@@ -31,12 +31,16 @@ PreparedInput = typing.TypedDict(
 
 BundleProcessor = typing.Callable[
   [PreparedInput],
-  list[DataItemWrite] | DataItemWrite
+  list[DataItemWrite] | DataItemWrite | None
 ]
 
 class Stream:
 
   handlers : dict[str, list[typing.Callable]]
+
+  def __init__(self) -> None:
+
+    self.handlers = {}
 
   def on(
     self,
@@ -50,6 +54,11 @@ class Stream:
     self.handlers[event].append(handler)
 
     return self
+
+
+  def close(self) -> None:
+    
+    self.emit('close')
 
   def emit(
     self,
@@ -69,6 +78,11 @@ class Stream:
     return res
 
 class Interval:
+
+  '''
+  Copied from SO, no idea if it works.
+  TODO: test
+  '''
 
   def __init__(self, interval, action) -> None:
 
@@ -173,10 +187,15 @@ class InputStream(Stream):
     polling_time : int = 500,
   ) -> None:
 
+    Stream.__init__(self)
+
     self.api: 'PipelineApi' = api
     self.query: BundleQuery = query
     self.polling_time: int = polling_time
     self.active_callbacks: Counter = Counter(max=max_concurrency)
+
+    # kill the timer after close
+    self.on('close', self.pause)
 
   def on(
     self,
@@ -221,7 +240,7 @@ class InputStream(Stream):
 
     if not self.interval:
       
-      self.interval = Interval(self.polling_time, self.__poll)
+      self.interval = Interval(self.polling_time, self.poll)
 
   def resume(self) -> None:
 
@@ -229,20 +248,22 @@ class InputStream(Stream):
 
     return self.start()
 
-  def __poll(self) -> None:
+  def poll(self) -> None:
 
     '''
     Runs one single polling iteration.
     '''
 
     bundles: list[BundleRead] = self.api.consume(self.query)
-
+    
     for bundle in bundles:
 
       self.emit(
         'data',
         prepare_bundle(
-          self.api.workers[bundle['workerId']], 
+          self.api.get_registered_worker(
+            bundle['workerId'] if 'workerId' in bundle else None
+          ), 
           bundle
         )
       )
