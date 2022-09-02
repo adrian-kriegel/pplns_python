@@ -1,6 +1,10 @@
  
-from pplns_types import DataItemWrite
-from pplns_python.input_stream import PreparedInput
+import typing
+from pplns_types import \
+  DataItemWrite, \
+  BundleRead
+
+from pplns_python.input_stream import PreparedInput, prepare_bundle
 
 from test.testing_utils import \
   TestPipelineApi as PipelineApi
@@ -61,5 +65,53 @@ def test_input_stream():
   assert 'in' in inp
   assert inp['in'] == emitted_item
 
+def test_prepare_bundle():
+
+  bundle : typing.Any  = \
+  {
+    '_id': 'something',
+    'flowId': 'some_flow_id',
+    'inputItems': 
+    [
+      {
+        'position': 1,
+        'inputChannel': 'in1',
+        'itemId': 'item1',
+      },
+      {
+        'position': 0,
+        'inputChannel': 'in0',
+        'itemId': 'item0',
+      },
+      {
+        'position': 2,
+        'inputChannel': 'in2',
+        'itemId': 'item2',
+      },  
+    ],
+    'items': 
+    [
+      { '_id': 'item2' },
+      { '_id': 'item1' },
+      { '_id': 'item0' }
+    ]
+  }
+
+  worker : typing.Any = \
+  {
+    '_id': 'mock-worker',
+    'inputs': 
+    {
+      'in0': {},
+      'in1': {},
+      'in2': {}
+    }
+  }
+
+  prepared: PreparedInput = prepare_bundle(worker, bundle)
+
+  assert prepared['inputs']['in0']['_id'] == 'item0'
+  assert prepared['inputs']['in1']['_id'] == 'item1'
+  assert prepared['inputs']['in2']['_id'] == 'item2'
 
 
