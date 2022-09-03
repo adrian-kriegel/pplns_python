@@ -42,11 +42,50 @@ def sink_node(source_node : NodeRead) -> NodeWrite:
     'position': { 'x': 0, 'y': 0 }
   }
 
+# TODO: type
+RequestParams = typing.Any
+
+class MockClient:
+
+  def __init__(self, client : typing.Any):
+
+    self.client = client
+
+    self.requests : list[RequestParams] = []
+
+  def __getattr__(
+    self,
+    name : str
+  ):
+    
+    return lambda **params : self.request(name, **params)
+
+  def request(self, method, **params):
+
+    self.requests.append({ **params, 'method': method })
+
+    return getattr(self.client, method)(**params)
+
+  def find_requests(
+    self,
+    predicate : typing.Callable[[RequestParams], bool]
+  ):
+
+    return [r for r in self.requests if predicate(r)]
+
+
+  def clear_logs(self):
+
+    self.requests = []
+
 class TestPipelineApi(PipelineApi):
 
   def __init__(self, url : typing.Optional[str] = None) -> None:
 
     PipelineApi.__init__(self, url or env('PPLNS_API'))
+
+    # wrap the HTTP client in mock client
+    self.client = MockClient(self.client)
 
 
   def get_registered_worker(self, workerId: typing.Optional[str]) -> Worker:

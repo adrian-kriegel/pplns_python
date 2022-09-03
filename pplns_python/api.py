@@ -20,11 +20,10 @@ from pplns_types import \
   BundleRead, \
   BundleQuery, \
   DataItemWrite, \
-  DataItemQuery
+  DataItemQuery, \
+  DataItem
 
-from pplns_python.input_stream import BundleProcessor, InputStream
-
-
+from pplns_python.input_stream import InputStream
 
 def stringify_value(value : typing.Any) -> str:
 
@@ -51,6 +50,10 @@ class PipelineApi:
   __endpoint : UrlParseResult
 
   workers : dict[str, Worker]
+  
+  client = requests
+
+  task_id : str | None
 
   def __init__(
     self,
@@ -63,23 +66,23 @@ class PipelineApi:
 
   def get(self, **request_params) -> typing.Any:
 
-    return self.__parse_response(requests.get(**request_params))
+    return self.__parse_response(self.client.get(**request_params))
 
   def post(self, **request_params) -> typing.Any:
 
-    return self.__parse_response(requests.post(**request_params))
+    return self.__parse_response(self.client.post(**request_params))
 
   def put(self, **request_params) -> typing.Any:
 
-    return self.__parse_response(requests.put(**request_params))
+    return self.__parse_response(self.client.put(**request_params))
 
   def delete(self, **request_params) -> typing.Any:
 
-    return self.__parse_response(requests.delete(**request_params))
+    return self.__parse_response(self.client.delete(**request_params))
 
   def patch(self, **request_params) -> typing.Any:
 
-    return self.__parse_response(requests.patch(**request_params))
+    return self.__parse_response(self.client.patch(**request_params))
 
   def __parse_response(
     self,
@@ -166,11 +169,27 @@ class PipelineApi:
 
     return self.workers[workerId]
 
-
   def consume(
+    self,
+    query : BundleQuery 
+  ) -> list[BundleRead]:
+
+    '''
+    Same as get_bundles(...) with consume=True by default
+    '''
+
+    return self.get_bundles(
+      { 'consume': True, **query }
+    )
+
+  def get_bundles(
     self,
     query : BundleQuery
   ) -> list[BundleRead]:
+
+    '''
+    Returns input bundles for the given query.
+    '''
 
     params = self.build_request(
       ('/bundles', query),
@@ -182,19 +201,28 @@ class PipelineApi:
 
   def unconsume(
     self,
+    task_id : str,
     bundle_id : str
-  ):
+  ) -> None:
+
+    '''
+    Undo consuming a bundle.
+    '''
 
     return self.put(
-      url=('/bundles/' + bundle_id)
+      **self.build_request(f'/tasks/{task_id}/bundles/{bundle_id}')
     )
 
   def emit_item(
     self,
     query : DataItemQuery,
     item : DataItemWrite
-  ):
+  ) -> DataItem:
     
+    '''
+    Emit a DataItem as an output.
+    '''
+
     return self.post(
       **self.build_request(
         ('/outputs', query),
@@ -210,13 +238,11 @@ class PipelineApi:
   ) -> InputStream:
 
     '''
-    Initializes InputStream to watch for new bundles with that match the provided query.
+    Initializes InputStream to watch for new bundles that match the provided query.
     '''
 
-    stream = InputStream(
+    return InputStream(
       self,
       query,
       **input_stream_args
     )
-
-    return stream

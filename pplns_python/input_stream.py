@@ -1,6 +1,6 @@
 
 import threading
-from time import time
+import time
 import typing
 
 
@@ -22,6 +22,8 @@ PreparedInput = typing.TypedDict(
   {
     # bundle id
     '_id': str,
+    # bundle taskId
+    'taskId': str,
     # bundle flowId
     'flowId': FlowIdSchema,
     # data items by their name
@@ -167,6 +169,7 @@ def prepare_bundle(
 
   return {
     '_id': bundle['_id'],
+    'taskId': bundle['taskId'],
     'flowId' :bundle['flowId'],
     'inputs': dict(zip(worker['inputs'].keys(), items_sorted))
   }
@@ -268,13 +271,14 @@ class InputStream(Stream):
         )
       )
 
-  def __handle_callback_error(
+  def handle_callback_error(
     self,
-    bundleId : str,
+    task_id : str,
+    bundle_id : str,
     error : Exception
   ) -> None:
 
-    self.api.unconsume(bundleId)
+    self.api.unconsume(task_id, bundle_id)
 
     self.emit('error', error)
 
@@ -306,7 +310,11 @@ class InputStreamDataCallback:
 
     except Exception as e:
 
-      self.stream.__handle_callback_error(input['_id'], e)
+      self.stream.handle_callback_error(
+        input['taskId'],
+        input['_id'],
+        e
+      )
 
     finally:
 

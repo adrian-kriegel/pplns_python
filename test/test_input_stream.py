@@ -1,8 +1,10 @@
  
+from distutils import errors
 import typing
+
 from pplns_types import \
   DataItemWrite, \
-  BundleRead
+  BundleQuery
 
 from pplns_python.input_stream import PreparedInput, prepare_bundle
 
@@ -28,16 +30,31 @@ class SimpleProcessor:
 
     self.inputs.append(input)
 
+class ErrorProcessor:
+
+  '''
+  Will simply throw an error when called.
+  '''
+
+  def __call__(self, bundle):
+
+    raise Exception('Example Exception.')
+
 def test_input_stream():
+
+  '''
+  Test basic input stream behavior.
+  '''
 
   processor = SimpleProcessor()
 
-  stream = api.create_input_stream(
-    {
-      'consumerId': sink['_id'],
-      'taskId': task['_id']
-    },
-  )
+  bundle_query : BundleQuery = \
+  {
+    'consumerId': sink['_id'],
+    'taskId': task['_id']
+  }
+
+  stream = api.create_input_stream(bundle_query)
 
   stream.on('data', processor)
 
@@ -65,12 +82,81 @@ def test_input_stream():
   assert 'in' in inp
   assert inp['in'] == emitted_item
 
+  # check that the queue is now empty
+
+  # check that the item is available to be consumed again
+  bundles = api.consume(bundle_query)
+
+  assert len(bundles) == 0
+
+
+def test_input_stream_error_handling():
+
+  '''
+  Tests for error handling in InputStream
+  '''
+
+  api.client.clear_logs()
+
+  processor = ErrorProcessor()
+
+  bundle_query : BundleQuery = \
+  {
+    'consumerId': sink['_id'],
+    'taskId': task['_id']
+  }
+
+  stream = api.create_input_stream(bundle_query)
+
+  errors : list[Exception] = []
+
+  stream.on('data', processor)
+  stream.on('error', lambda e: errors.append(e))
+
+  item : DataItemWrite = \
+  {
+    "outputChannel": 'data',
+    "done": True,
+    "data": [ 'example data' ],
+  }
+
+  emitted_item = api.emit_item(
+    { 'nodeId': source['_id'], 'taskId': task['_id'] },
+    item
+  )
+
+  # calling stream.poll ensures that the data is fetched
+  stream.poll()
+
+  stream.close()
+
+  assert len(errors) == 1
+  
+  put_requests = api.client.find_requests(
+    lambda r: r['method'] == 'put'
+  )
+
+  assert len(put_requests) == 1
+
+  # TODO: also check that the correct PUT request was made
+  # the assumtion that the request was correct may be made assuming the api client would otherwise
+  # forward an Exception from the server
+
+  # check that the item is available to be consumed again
+  bundles = api.consume(bundle_query)
+
+  assert len(bundles) == 1
+
+  assert bundles[0]['inputItems'][0]['itemId'] == emitted_item['_id']
+
 def test_prepare_bundle():
 
+  # using Any to be able to only populate fields required by prepare_bundle
   bundle : typing.Any  = \
   {
     '_id': 'something',
     'flowId': 'some_flow_id',
+    'taskId': 'some_task_id',
     'inputItems': 
     [
       {
