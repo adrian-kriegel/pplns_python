@@ -13,6 +13,8 @@ from pplns_types import \
   NodeWrite, \
   Worker
 
+from pplns_python.processor import PreparedInput
+
 def env(s : str) -> str:
 
   v: str | None  = os.environ.get(s)
@@ -27,6 +29,16 @@ source_node : NodeWrite = \
   'inputs': [],
   'internalWorker': 'data-source',
   'position': { 'x': 0, 'y': 0 }
+}
+
+mock_prepared_input : PreparedInput = \
+{
+  '_id': 'mock_prepared_input._id',
+  'taskId': 'mock_prepared_input.task_id',
+  'flowId': 'mock_prepared_input.flowId',
+  'consumerId': 'mock_prepared_input.consumerId',
+  'flowStack': [],
+  'inputs': {},
 }
 
 def sink_node(source_node : NodeRead) -> NodeWrite:

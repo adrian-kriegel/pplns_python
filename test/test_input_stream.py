@@ -11,7 +11,7 @@ from pplns_types import \
 
 from pplns_python.stream import PreparedInput, prepare_bundle
 
-from test.testing_utils import \
+from pplns_python.testing_utils import \
   TestPipelineApi as PipelineApi
 
 from pplns_python.example_worker import example_worker
