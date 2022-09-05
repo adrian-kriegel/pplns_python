@@ -151,10 +151,23 @@ def prepare_bundle(
     bundle['items'][item_ids.index(ref['itemId'])] for ref in item_refs_sorted
   ]
 
+  # TODO: this should be done by the core-api!
+  # find the largest (deepest) flow stack
+  flow_stack_sizes : list[int] = [
+    len(item['flowStack']) if 'flowStack' in item else 0 for item in bundle['items']
+  ]
+
+  # TODO: this is argmax but ugly ... 
+  max_depth: int = max(flow_stack_sizes)
+  deepest_item : DataItem = bundle['items'][flow_stack_sizes.index(max_depth)]
+
+  flow_stack = deepest_item['flowStack'] if 'flowStack' in deepest_item else []
+
   return {
     '_id': bundle['_id'],
     'taskId': bundle['taskId'],
-    'flowId' :bundle['flowId'],
+    'flowId': bundle['flowId'],
+    'flowStack': flow_stack, 
     'consumerId': bundle['consumerId'],
     'inputs': dict(zip(worker['inputs'].keys(), items_sorted))
   }
@@ -267,6 +280,14 @@ class InputStream(Stream):
 
     self.emit('error', error)
 
+  def on_data(self, processor : BundleProcessor) -> Stream:
+
+    '''
+    Typed alias for on('data', processor).
+    '''
+
+    return self.on('data', processor)
+
 
 class InputStreamDataCallback:
 
@@ -296,35 +317,51 @@ class InputStreamDataCallback:
 
         self.stream.pause()
 
-      items : list[DataItemWrite] | None = None
-
       if isinstance(self.processor, BatchProcessor):
 
-        items = self.processor(inputs)
+        outputs = self.processor(inputs)
 
       else:
 
-        items_or_none = [
+        outputs_or_none = [
           self.processor(inp) for inp in inputs
         ]
 
-        items = [item for item in items_or_none if item]
+        outputs = [o for o in outputs_or_none if o]
 
       # TODO: this method allow the processor to only populate one output channel
       # TODO: allow the processor to return dict[channel, item]
-      if items and len(items) > 0:
+      if outputs and len(outputs) > 0:
+
+        if not len(outputs) == len(inputs):
+
+          raise Exception(
+            'Received {} outputs for {} inputs.'.format(
+              len(outputs), len(inputs)
+            )
+          )
 
         # TODO: add bulk request feature to API
-        for item, bundle in zip(items, inputs):
+        for output, bundle in zip(outputs, inputs):
 
-          self.stream.api.emit_item(
-            {
-              'nodeId': bundle['consumerId'],
-              'taskId': bundle['taskId'],
-            },
-            # TODO: allow the processor to omit flowId and flowStack
-            item
-          )
+          for channel,o in output.items():
+            
+            item : DataItemWrite = \
+            { 
+              **o,
+              'outputChannel': channel,
+              'done': o['done'] if 'done' in o else True,
+              'flowId': bundle['flowId'],
+              'flowStack': bundle['flowStack']
+            }
+
+            self.stream.api.emit_item(
+              {
+                'nodeId': bundle['consumerId'],
+                'taskId': bundle['taskId'],
+              },
+              item
+            )
 
     except Exception as e:
 

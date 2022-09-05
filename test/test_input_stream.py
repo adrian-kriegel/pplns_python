@@ -211,6 +211,10 @@ def test_prepare_bundle():
 
 def test_emit_returned_items():
   
+  '''
+  TODO: add test case for MIMO
+  '''
+
   api = PipelineApi()
   
   task, source, sink = api.utils_source_sink_pipe()
@@ -271,15 +275,13 @@ def test_emit_returned_items():
 
   stream.on('error', lambda e: errors.append(e))
 
-  stream.on(
-    'data',
+  stream.on_data(
     lambda bundle : \
     {
-      'flowId': bundle['flowId'],
-      'flowStack': [],
-      'outputChannel': 'out',
-      'done': True,
-      'data': ['processed: ' + bundle['inputs']['in']['data'][0]]
+      'out':
+      {
+        'data': ['processed: ' + bundle['inputs']['in']['data'][0]]
+      }
     }
   )
 
