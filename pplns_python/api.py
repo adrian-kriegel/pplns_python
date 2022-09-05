@@ -23,7 +23,7 @@ from pplns_types import \
   DataItemQuery, \
   DataItem
 
-from pplns_python.input_stream import InputStream
+from pplns_python.stream import InputStream
 
 def stringify_value(value : typing.Any) -> str:
 

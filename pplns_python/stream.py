@@ -3,7 +3,6 @@ import threading
 import time
 import typing
 
-
 # required to avoid circular dependencies in runtime
 if typing.TYPE_CHECKING:
   
@@ -14,27 +13,12 @@ from pplns_types import \
   BundleRead, \
   DataItem, \
   DataItemWrite, \
-  FlowIdSchema, \
   WorkerWrite
 
-PreparedInput = typing.TypedDict(
-  'PreparedInput',
-  {
-    # bundle id
-    '_id': str,
-    # bundle taskId
-    'taskId': str,
-    # bundle flowId
-    'flowId': FlowIdSchema,
-    # data items by their name
-    'inputs': dict[str, DataItem],
-  },
-)
-
-BundleProcessor = typing.Callable[
-  [PreparedInput],
-  list[DataItemWrite] | DataItemWrite | None
-]
+from pplns_python.processor import \
+  BatchProcessor, \
+  BundleProcessor, \
+  PreparedInput
 
 class Stream:
 
@@ -171,6 +155,7 @@ def prepare_bundle(
     '_id': bundle['_id'],
     'taskId': bundle['taskId'],
     'flowId' :bundle['flowId'],
+    'consumerId': bundle['consumerId'],
     'inputs': dict(zip(worker['inputs'].keys(), items_sorted))
   }
 
@@ -292,13 +277,18 @@ class InputStreamDataCallback:
   def __init__(
     self,
     stream : InputStream,
-    fnc : BundleProcessor
+    processor : BundleProcessor
   ) -> None:
 
     self.stream: InputStream = stream
-    self.fnc = fnc
+    self.processor = processor
 
-  def __call__(self, input : PreparedInput) -> None:
+  def __call__(self, inp : PreparedInput) -> None:
+
+    # TODO: actually implement batching in the InputStream class
+    return self.process_batch([inp])
+
+  def process_batch(self, inputs : list[PreparedInput]) -> None:
 
     try:
 
@@ -306,15 +296,45 @@ class InputStreamDataCallback:
 
         self.stream.pause()
 
-      self.fnc(input)
+      items : list[DataItemWrite] | None = None
+
+      if isinstance(self.processor, BatchProcessor):
+
+        items = self.processor(inputs)
+
+      else:
+
+        items_or_none = [
+          self.processor(inp) for inp in inputs
+        ]
+
+        items = [item for item in items_or_none if item]
+
+      # TODO: this method allow the processor to only populate one output channel
+      # TODO: allow the processor to return dict[channel, item]
+      if items and len(items) > 0:
+
+        # TODO: add bulk request feature to API
+        for item, bundle in zip(items, inputs):
+
+          self.stream.api.emit_item(
+            {
+              'nodeId': bundle['consumerId'],
+              'taskId': bundle['taskId'],
+            },
+            # TODO: allow the processor to omit flowId and flowStack
+            item
+          )
 
     except Exception as e:
 
-      self.stream.handle_callback_error(
-        input['taskId'],
-        input['_id'],
-        e
-      )
+      for inp in inputs:
+
+        self.stream.handle_callback_error(
+          inp['taskId'],
+          inp['_id'],
+          e
+        )
 
     finally:
 

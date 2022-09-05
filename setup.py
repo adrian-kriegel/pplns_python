@@ -5,5 +5,5 @@ from distutils.core import setup
 setup(
   name='pplns_python',
   version='1.0',
-  py_modules=['api'],
+  py_modules=['api', 'stream', 'processor'],
 )

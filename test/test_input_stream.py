@@ -6,7 +6,7 @@ from pplns_types import \
   DataItemWrite, \
   BundleQuery
 
-from pplns_python.input_stream import PreparedInput, prepare_bundle
+from pplns_python.stream import PreparedInput, prepare_bundle
 
 from test.testing_utils import \
   TestPipelineApi as PipelineApi
@@ -157,6 +157,7 @@ def test_prepare_bundle():
     '_id': 'something',
     'flowId': 'some_flow_id',
     'taskId': 'some_task_id',
+    'consumerId': 'some_consumer_id',
     'inputItems': 
     [
       {
@@ -200,4 +201,7 @@ def test_prepare_bundle():
   assert prepared['inputs']['in1']['_id'] == 'item1'
   assert prepared['inputs']['in2']['_id'] == 'item2'
 
+def test_emit_returned_items():
 
+  # TODO: test that returned items are emitted correctly
+  pass
