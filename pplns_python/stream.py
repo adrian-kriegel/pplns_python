@@ -226,7 +226,7 @@ class InputStream(Stream):
 
     ''' Starts stream if not already started. '''
 
-    if not self.interval:
+    if not self.interval and not self.polling_time == -1:
       
       self.interval = Interval(self.polling_time, self.poll)
 

@@ -27,11 +27,11 @@ def test_build_uri() -> None:
   assert uri == 'http://example.com/api/path/to/resource?foo=bar&test=bart'
 
 
-api = PipelineApi()
-
-task, source, sink = api.utils_source_sink_pipe()
-
 def test_register_worker() -> None:
+
+  api = PipelineApi()
+
+  task, source, sink = api.utils_source_sink_pipe()
 
   result = api.register_worker(
     example_worker
@@ -42,6 +42,10 @@ def test_register_worker() -> None:
   assert isinstance(api.workers[result['_id']], dict)
 
 def test_emit_item_consume_item():
+  
+  api = PipelineApi()
+
+  task, source, sink = api.utils_source_sink_pipe()
 
   item : DataItemWrite = \
   {

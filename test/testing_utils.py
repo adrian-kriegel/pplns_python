@@ -1,4 +1,5 @@
 
+from distutils.command.clean import clean
 import os
 
 from pplns_python.api import PipelineApi
@@ -49,6 +50,8 @@ class MockClient:
 
   def __init__(self, client : typing.Any):
 
+    cleanup()
+
     self.client = client
 
     self.requests : list[RequestParams] = []
@@ -62,9 +65,13 @@ class MockClient:
 
   def request(self, method, **params):
 
-    self.requests.append({ **params, 'method': method })
+    response = getattr(self.client, method)(**params)
 
-    return getattr(self.client, method)(**params)
+    self.requests.append(
+      { **params, 'method': method, 'response': response }
+    )
+
+    return response
 
   def find_requests(
     self,

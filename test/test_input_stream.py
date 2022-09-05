@@ -1,5 +1,8 @@
  
-from distutils import errors
+from urllib.parse import \
+  urlparse,\
+  parse_qs
+
 import typing
 
 from pplns_types import \
@@ -11,10 +14,7 @@ from pplns_python.stream import PreparedInput, prepare_bundle
 from test.testing_utils import \
   TestPipelineApi as PipelineApi
 
-
-api = PipelineApi()
-
-task, source, sink = api.utils_source_sink_pipe()
+from pplns_python.example_worker import example_worker
 
 class SimpleProcessor:
 
@@ -45,6 +45,10 @@ def test_input_stream():
   '''
   Test basic input stream behavior.
   '''
+
+  api = PipelineApi()
+
+  task, source, sink = api.utils_source_sink_pipe()
 
   processor = SimpleProcessor()
 
@@ -95,6 +99,10 @@ def test_input_stream_error_handling():
   '''
   Tests for error handling in InputStream
   '''
+
+  api = PipelineApi()
+  
+  task, source, sink = api.utils_source_sink_pipe()
 
   api.client.clear_logs()
 
@@ -202,6 +210,138 @@ def test_prepare_bundle():
   assert prepared['inputs']['in2']['_id'] == 'item2'
 
 def test_emit_returned_items():
+  
+  api = PipelineApi()
+  
+  task, source, sink = api.utils_source_sink_pipe()
 
-  # TODO: test that returned items are emitted correctly
-  pass
+  worker = api.register_worker(
+    {
+      **example_worker,
+      'key': 'passthru',
+      'inputs': { 'in': {} },
+      'outputs': { 'out': {} }
+    }
+  )
+
+  passthru = api.utils_create_node(
+    task,
+    {
+      'inputs': [
+        {
+          'nodeId': source['_id'],
+          'outputChannel': 'data',
+          'inputChannel': 'in',
+        }
+      ],
+      'workerId': worker['_id'],
+      'position': { 'x': 0, 'y': 0 }
+    }
+  )
+
+  # patch the sink node to connect it to the passthru node instead of directly taking inputs from source
+  api.patch(
+    **api.build_request(
+      '/tasks/{}/nodes/{}'.format(task['_id'], sink['_id']),
+      { 
+        'inputs': 
+        [
+          {
+            'nodeId': passthru['_id'],
+            'outputChannel': 'out',
+            'inputChannel': 'in',
+          }
+        ]
+      }
+    )
+  )
+
+  bundle_query : BundleQuery = \
+  {
+    'consumerId': passthru['_id'],
+    'taskId': task['_id']
+  }
+
+  stream = api.create_input_stream(
+    bundle_query,
+    polling_time=-1
+  )
+
+  errors = []
+
+  stream.on('error', lambda e: errors.append(e))
+
+  stream.on(
+    'data',
+    lambda bundle : \
+    {
+      'flowId': bundle['flowId'],
+      'flowStack': [],
+      'outputChannel': 'out',
+      'done': True,
+      'data': ['processed: ' + bundle['inputs']['in']['data'][0]]
+    }
+  )
+
+  item : DataItemWrite = \
+  {
+    "outputChannel": 'data',
+    "done": True,
+    "data": [ 'example data' ],
+  }
+
+  api.emit_item(
+    { 'nodeId': source['_id'], 'taskId': task['_id'] },
+    item
+  )
+
+  bundles = api.get_bundles(bundle_query)
+  
+  assert len(bundles) == 1
+  assert bundles[0]['consumerId'] == passthru['_id']
+  
+
+  api.client.clear_logs()
+
+  # calling stream.poll ensures that the data is fetched
+  stream.poll()
+
+  stream.close()
+
+  if len(errors) > 0:
+
+    raise errors[0]
+
+  post_requests = api.client.find_requests(
+    lambda r: r['method'] == 'post'
+  )
+
+  # logs have been cleared after creating the initial item, so there should be only the request
+  # to create the item from the passthru node
+  assert len(post_requests) == 1
+
+  last_request = api.client.requests[len(api.client.requests) - 1]
+
+  # the last request should be the only post request made
+  assert last_request == post_requests[0]
+
+  assert last_request['method'] == 'post'
+
+  url = urlparse(last_request['url'])
+
+  query = parse_qs(url.query)
+
+  assert query['nodeId'] == [passthru['_id']]
+  assert query['taskId'] == [task['_id']]
+
+  # TODO: also check url of last request
+
+  bundles = api.consume(
+    {
+      'consumerId': sink['_id'],
+      'taskId': task['_id']
+    }
+  )
+
+  assert len(bundles) == 1
+  assert bundles[0]['items'][0]['data'][0] == 'processed: example data'
