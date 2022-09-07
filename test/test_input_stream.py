@@ -222,7 +222,7 @@ def test_emit_returned_items():
   worker = api.register_worker(
     {
       **example_worker,
-      'key': 'passthru',
+      '_id': 'passthru',
       'inputs': { 'in': {} },
       'outputs': { 'out': {} }
     }

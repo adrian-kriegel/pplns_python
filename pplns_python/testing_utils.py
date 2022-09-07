@@ -27,7 +27,7 @@ def env(s : str) -> str:
 source_node : NodeWrite = \
 {
   'inputs': [],
-  'internalWorker': 'data-source',
+  'workerId': 'data-source',
   'position': { 'x': 0, 'y': 0 }
 }
 
@@ -51,7 +51,7 @@ def sink_node(source_node : NodeRead) -> NodeWrite:
         'outputChannel': 'data'
       }
     ],
-    'internalWorker': 'data-sink',
+    'workerId': 'data-sink',
     'position': { 'x': 0, 'y': 0 }
   }
 
@@ -112,7 +112,6 @@ class TestPipelineApi(PipelineApi):
     if not workerId:
 
       worker : Worker = {
-        'key': 'mock-worker',
         '_id': 'mock-worker',
         'title': '',
         'description': '',

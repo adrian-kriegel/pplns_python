@@ -148,11 +148,11 @@ class PipelineApi:
   ) -> Worker:
 
     params = self.build_request(
-      '/workers',
+      '/workers/' + worker['_id'],
       worker
     )
 
-    worker_read : Worker = self.post(**params)
+    worker_read : Worker = self.put(**params)
 
     self.workers[worker_read['_id']] = worker_read
 
