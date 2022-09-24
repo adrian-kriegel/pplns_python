@@ -28,6 +28,8 @@ class Stream:
 
     self.handlers = {}
 
+    self.closed = False
+
   def on(
     self,
     event : str,
@@ -44,6 +46,7 @@ class Stream:
 
   def close(self) -> None:
     
+    self.closed = True
     self.emit('close')
 
   def emit(
@@ -103,10 +106,10 @@ class Counter:
 
   def __init__(
     self,
-    max : int
+    max_count : int
   ) -> None:
 
-    self.__max = max
+    self.__max = max_count
     self.__counter = 0
     self.__lock = threading.Lock()
 
@@ -184,16 +187,16 @@ class InputStream(Stream):
     self,
     api : 'PipelineApi',
     query : BundleQuery,
-    max_concurrency : int = 10,
-    polling_time : int = 500,
+    max_concurrency : int = 1,
+    polling_time : float = 0.5,
   ) -> None:
 
     Stream.__init__(self)
 
     self.api: 'PipelineApi' = api
     self.query: BundleQuery = query
-    self.polling_time: int = polling_time
-    self.active_callbacks: Counter = Counter(max=max_concurrency)
+    self.polling_time: float = polling_time
+    self.active_callbacks: Counter = Counter(max_count=max_concurrency)
 
     # kill the timer after close
     self.on('close', self.pause)
@@ -238,7 +241,7 @@ class InputStream(Stream):
   def start(self) -> None:
 
     ''' Starts stream if not already started. '''
-
+    
     if not self.interval and not self.polling_time == -1:
       
       self.interval = Interval(self.polling_time, self.poll)
@@ -313,14 +316,15 @@ class InputStreamDataCallback:
 
     try:
 
-      if not self.stream.active_callbacks.dec():
-
+      if not self.stream.active_callbacks.inc():
+        
         self.stream.pause()
+
 
       if isinstance(self.processor, BatchProcessor):
 
         outputs = self.processor(inputs)
-
+        
       else:
 
         outputs_or_none = [
@@ -364,7 +368,7 @@ class InputStreamDataCallback:
             )
 
     except Exception as e:
-
+      print(e)
       for inp in inputs:
 
         self.stream.handle_callback_error(
@@ -375,6 +379,6 @@ class InputStreamDataCallback:
 
     finally:
 
-      if self.stream.active_callbacks.inc():
+      if self.stream.active_callbacks.dec():
 
         self.stream.resume()
