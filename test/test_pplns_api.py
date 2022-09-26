@@ -52,6 +52,7 @@ def test_emit_item_consume_item():
     "outputChannel": 'data',
     "done": True,
     "data": [ 'example data' ],
+    "consumptionId": None,
   }
 
   emit_response = api.emit_item(

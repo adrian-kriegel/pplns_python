@@ -67,6 +67,7 @@ def test_input_stream():
     "outputChannel": 'data',
     "done": True,
     "data": [ 'example data' ],
+    "consumptionId": None,
   }
 
   emitted_item = api.emit_item(
@@ -126,6 +127,7 @@ def test_input_stream_error_handling():
     "outputChannel": 'data',
     "done": True,
     "data": [ 'example data' ],
+    "consumptionId": None,
   }
 
   emitted_item = api.emit_item(
@@ -290,6 +292,7 @@ def test_emit_returned_items():
     "outputChannel": 'data',
     "done": True,
     "data": [ 'example data' ],
+    "consumptionId": None,
   }
 
   api.emit_item(

@@ -5,7 +5,7 @@ from xmlrpc.client import boolean
 
 from pplns_types import \
   DataItem, \
-  DataItemWrite, \
+  BundleRead, \
   FlowIdSchema
 
 
@@ -16,14 +16,12 @@ PreparedInput = typing.TypedDict(
     '_id': str,
     # bundle taskId
     'taskId': str,
-    # bundle flowId
-    'flowId': FlowIdSchema,
     # id of the consumer node
     'consumerId': str,
-    # larges flow stack of all items (TODO: type!)
-    'flowStack': list[typing.Any],
     # data items by their name
     'inputs': dict[str, DataItem],
+    # original bundle
+    'bundle': BundleRead
   },
 )
 

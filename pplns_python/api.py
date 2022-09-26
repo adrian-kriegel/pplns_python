@@ -18,6 +18,7 @@ from pplns_types import \
   WorkerWrite, \
   Worker, \
   BundleRead, \
+  BundleWrite, \
   BundleQuery, \
   DataItemWrite, \
   DataItemQuery, \
@@ -66,27 +67,28 @@ class PipelineApi:
 
   def get(self, **request_params) -> typing.Any:
 
-    return self.__parse_response(self.client.get(**request_params))
+    return self.__parse_response(self.client.get(**request_params), **request_params)
 
   def post(self, **request_params) -> typing.Any:
 
-    return self.__parse_response(self.client.post(**request_params))
+    return self.__parse_response(self.client.post(**request_params), **request_params)
 
   def put(self, **request_params) -> typing.Any:
 
-    return self.__parse_response(self.client.put(**request_params))
+    return self.__parse_response(self.client.put(**request_params), **request_params)
 
   def delete(self, **request_params) -> typing.Any:
 
-    return self.__parse_response(self.client.delete(**request_params))
+    return self.__parse_response(self.client.delete(**request_params), **request_params)
 
   def patch(self, **request_params) -> typing.Any:
 
-    return self.__parse_response(self.client.patch(**request_params))
+    return self.__parse_response(self.client.patch(**request_params), **request_params)
 
   def __parse_response(
     self,
-    response : requests.Response
+    response : requests.Response,
+    **request_params,
   ) -> dict:
 
     is_json: bool = response.headers['Content-Type'].startswith('application/json')
@@ -107,7 +109,8 @@ class PipelineApi:
         
         raise Exception(
           'API error:\n' +
-          json.dumps(body, indent=4)
+          f'Request: {response.request.method} {json.dumps(request_params, indent=4)} \n\n'
+          'Response: ' + json.dumps(body, indent=4)
         )
 
       else:
@@ -202,15 +205,21 @@ class PipelineApi:
   def unconsume(
     self,
     task_id : str,
-    bundle_id : str
+    bundle_id : str,
+    consumption_id : str,
   ) -> None:
 
     '''
     Undo consuming a bundle.
     '''
 
+    body : BundleWrite = { 'consumptionId': consumption_id }
+
     return self.put(
-      **self.build_request(f'/tasks/{task_id}/bundles/{bundle_id}')
+      **self.build_request(
+        f'/tasks/{task_id}/bundles/{bundle_id}',
+        body
+      )
     )
 
   def emit_item(

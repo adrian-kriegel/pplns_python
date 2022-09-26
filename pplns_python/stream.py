@@ -154,25 +154,12 @@ def prepare_bundle(
     bundle['items'][item_ids.index(ref['itemId'])] for ref in item_refs_sorted
   ]
 
-  # TODO: this should be done by the core-api!
-  # find the largest (deepest) flow stack
-  flow_stack_sizes : list[int] = [
-    len(item['flowStack']) if 'flowStack' in item else 0 for item in bundle['items']
-  ]
-
-  # TODO: this is argmax but ugly ... 
-  max_depth: int = max(flow_stack_sizes)
-  deepest_item : DataItem = bundle['items'][flow_stack_sizes.index(max_depth)]
-
-  flow_stack = deepest_item['flowStack'] if 'flowStack' in deepest_item else []
-
   return {
     '_id': bundle['_id'],
     'taskId': bundle['taskId'],
-    'flowId': bundle['flowId'],
-    'flowStack': flow_stack, 
     'consumerId': bundle['consumerId'],
-    'inputs': dict(zip(worker['inputs'].keys(), items_sorted))
+    'inputs': dict(zip(worker['inputs'].keys(), items_sorted)),
+    'bundle': bundle,
   }
 
 class InputStream(Stream):
@@ -276,10 +263,14 @@ class InputStream(Stream):
     self,
     task_id : str,
     bundle_id : str,
+    consumption_id : str | None,
     error : Exception
   ) -> None:
 
-    self.api.unconsume(task_id, bundle_id)
+    # no need to unconsume the bundle if it has not been consumed in the first place
+    if not consumption_id == None:
+
+      self.api.unconsume(task_id, bundle_id, consumption_id)
 
     self.emit('error', error)
 
@@ -350,13 +341,21 @@ class InputStreamDataCallback:
 
           for channel,o in output.items():
             
+            consumption_id : str | None = \
+              bundle['bundle']['consumptionId'] \
+                if 'consumptionId' in bundle['bundle'] \
+                  else None
+
+            if (consumption_id == None):
+
+              raise Exception('Cannot emit bundle that has not been consumed.')
+
             item : DataItemWrite = \
             { 
               **o,
               'outputChannel': channel,
               'done': o['done'] if 'done' in o else True,
-              'flowId': bundle['flowId'],
-              'flowStack': bundle['flowStack']
+              'consumptionId': consumption_id,
             }
 
             self.stream.api.emit_item(
@@ -371,11 +370,19 @@ class InputStreamDataCallback:
       print(e)
       for inp in inputs:
 
+        consumption_id : str | None = \
+              inp['bundle']['consumptionId'] \
+                if 'consumptionId' in inp['bundle'] \
+                  else None
+
+
         self.stream.handle_callback_error(
           inp['taskId'],
           inp['_id'],
+          consumption_id,
           e
         )
+          
 
     finally:
 
