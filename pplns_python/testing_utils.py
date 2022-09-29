@@ -11,7 +11,8 @@ from pplns_types import \
   NodeRead, \
   Task, \
   NodeWrite, \
-  Worker
+  Worker, \
+  BundleRead
 
 from pplns_python.processor import PreparedInput
 
@@ -31,13 +32,17 @@ source_node : NodeWrite = \
   'position': { 'x': 0, 'y': 0 }
 }
 
+mock_bundle : BundleRead = \
+{
+  "_id": "mock-bundle-id",
+}  # type: ignore
+
 mock_prepared_input : PreparedInput = \
 {
-  '_id': 'mock_prepared_input._id',
+  '_id': mock_bundle['_id'],
+  'bundle': mock_bundle,
   'taskId': 'mock_prepared_input.task_id',
-  'flowId': 'mock_prepared_input.flowId',
   'consumerId': 'mock_prepared_input.consumerId',
-  'flowStack': [],
   'inputs': {},
 }
 
@@ -101,7 +106,7 @@ class TestPipelineApi(PipelineApi):
 
   def __init__(self, url : typing.Optional[str] = None) -> None:
 
-    PipelineApi.__init__(self, url or env('PPLNS_API'))
+    PipelineApi.__init__(self, url or env('PPLNS_API'), 'test-key')
 
     # wrap the HTTP client in mock client
     self.client = MockClient(self.client)

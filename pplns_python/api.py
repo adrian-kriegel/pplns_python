@@ -54,16 +54,17 @@ class PipelineApi:
   
   client = requests
 
-  task_id : str | None
-
   def __init__(
     self,
-    base_url : str
+    base_url : str,
+    api_key : str
   ) -> None:
 
     self.__endpoint = urlparse(base_url)
 
     self.workers = {}
+
+    self.api_key : str = api_key
 
   def get(self, **request_params) -> typing.Any:
 
@@ -141,7 +142,10 @@ class PipelineApi:
 
     return {
       'url': self.build_uri(url) if isinstance(url, str) else self.build_uri(url[0], url[1]),
-      'headers': { 'Content-Type': 'application/json' }, 
+      'headers': { 
+        'Content-Type': 'application/json',
+        'X-API-Key': self.api_key
+      }, 
       'data': json.dumps(body) if body else None
     }
 
